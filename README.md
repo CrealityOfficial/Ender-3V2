@@ -1,29 +1,3 @@
-# Ender-3 V2 Firmware
-
-Creality attaches great importance to users. As 3D printing industry evangelist, Creality, dedicating to bringing benefits to human beings via technology innovations, has received support from both users and 3D printing enthusiasts. With gratefulness, Creality wants to continue the pace of making the world a better place with you all. This time, Creality will open the source code and we believe GitHub is the way to go. 
-
-This is the repository that contains the source code and the development versions of the firmware running on the Creality [Ender-3 V2](https://www.creality.com/goods-detail/ender-3-v2-3d-printer), [Ender-3 S1](https://www.creality.com/goods-detail/creality-ender-3-s1-3d-printer), [CR-30/3DPrintMill](https://www.creality.com/goods-detail/creality-3dprintmill-3d-printer), [Ender-2 Pro](https://www.creality.com/goods-detail/creality-ender-2-pro-3d-printer), [Sermoon D1](https://www.creality.com/goods-detail/creality-sermoon-d1-3d-printer) and more products in the future. It's based on the well-known Marlin but with modifications.
-
-The firmware for the Creality Ender-3 V2is proudly based on Marlin2.0 byScott Lahteine (@thinkyhead), Roxanne Neufeld (@Roxy-3D), Chris Pepper (@p3p), Bob Kuhn (@Bob-the-Kuhn), João Brazio (@jbrazio), Erik van der Zalm (@ErikZalm) and is distributed under the terms of the GNU GPL 3 license.
-
-If you want to download the latest firmware version, go to Releases page and download the needed files. In the releases page you will find the source code and the SD Files needed for the LCD Display. After that, normally you need to update the SD files of the display and gradually complete the updates of menus, graphics and functionalities. 
-
-Please refer to: [YouTube](https://www.youtube.com/watch?v=Jswzrh2_ekk)
-In order to get instructions on how to upgrade the firmware and load new LCD SD files to the display.
-
-# Table of contents
-Windows build 
-Documentation
-Please refer to: [Marlin Page](https://marlinfw.org/docs/basics/introduction.html)
-
-# New Features
-1. Fix the problem of losing long file names in resume printing.
-2. Fix the problem of time reset with automatic return to zero.
-3. Fix some UI display defects.
-4. Add auto zero return function and UI display after power up.
-5. Add auto screen resting function.
-6. Add card pulling detection function.
-
 
 # Marlin 3D Printer Firmware
 

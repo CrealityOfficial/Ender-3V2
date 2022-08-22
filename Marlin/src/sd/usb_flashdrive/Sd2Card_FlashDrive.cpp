@@ -1,6 +1,6 @@
 /**
  * Marlin 3D Printer Firmware
- * Copyright (c) 2020 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ * Copyright (c) 2019 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
  *
  * Based on Sprinter and grbl.
  * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
@@ -16,7 +16,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -40,21 +40,20 @@
 
 #if ENABLED(USB_FLASH_DRIVE_SUPPORT)
 
-#include "../../MarlinCore.h"
+#include "../../Marlin.h"
 #include "../../core/serial.h"
 #include "../../module/temperature.h"
 
-#if DISABLED(USE_OTG_USB_HOST) && !PINS_EXIST(USB_CS, USB_INTR)
-  #error "USB_FLASH_DRIVE_SUPPORT requires USB_CS_PIN and USB_INTR_PIN to be defined."
-#endif
+static_assert(USB_CS_PIN   != -1, "USB_CS_PIN must be defined");
+static_assert(USB_INTR_PIN != -1, "USB_INTR_PIN must be defined");
 
 #if ENABLED(USE_UHS3_USB)
   #define NO_AUTO_SPEED
-  #define UHS_MAX3421E_SPD 8000000 >> SD_SPI_SPEED
+  #define UHS_MAX3421E_SPD 8000000 >> SPI_SPEED
   #define UHS_DEVICE_WINDOWS_USB_SPEC_VIOLATION_DESCRIPTOR_DEVICE 1
   #define UHS_HOST_MAX_INTERFACE_DRIVERS 2
   #define MASS_MAX_SUPPORTED_LUN 1
-  #define USB_HOST_SERIAL MYSERIAL1
+  #define USB_HOST_SERIAL MYSERIAL0
 
   // Workaround for certain issues with UHS3
   #define SKIP_PAGE3F // Required for IOGEAR media adapter
@@ -82,17 +81,6 @@
 
   #define UHS_START  (usb.Init() == 0)
   #define UHS_STATE(state) UHS_USB_HOST_STATE_##state
-#elif ENABLED(USE_OTG_USB_HOST)
-
-  #if HAS_SD_HOST_DRIVE
-    #include HAL_PATH(../../HAL, msc_sd.h)
-  #endif
-
-  #include HAL_PATH(../../HAL, usb_host.h)
-
-  #define UHS_START usb.start()
-  #define rREVISION 0
-  #define UHS_STATE(state) USB_STATE_##state
 #else
   #include "lib-uhs2/Usb.h"
   #include "lib-uhs2/masstorage.h"
@@ -106,7 +94,9 @@
 
 #include "Sd2Card_FlashDrive.h"
 
-#include "../../lcd/marlinui.h"
+#if HAS_DISPLAY
+  #include "../../lcd/ultralcd.h"
+#endif
 
 static enum {
   UNINITIALIZED,
@@ -121,12 +111,14 @@ static enum {
   uint32_t lun0_capacity;
 #endif
 
-bool DiskIODriver_USBFlash::usbStartup() {
+bool Sd2Card::usbStartup() {
   if (state <= DO_STARTUP) {
     SERIAL_ECHOPGM("Starting USB host...");
     if (!UHS_START) {
       SERIAL_ECHOLNPGM(" failed.");
-      LCD_MESSAGEPGM(MSG_MEDIA_USB_FAILED);
+      #if EITHER(ULTRA_LCD, EXTENSIBLE_UI)
+        LCD_MESSAGEPGM(MSG_MEDIA_USB_FAILED);
+      #endif
       return false;
     }
 
@@ -147,7 +139,7 @@ bool DiskIODriver_USBFlash::usbStartup() {
 // the USB library to monitor for such events. This function also takes care
 // of initializing the USB library for the first time.
 
-void DiskIODriver_USBFlash::idle() {
+void Sd2Card::idle() {
   usb.Task();
 
   const uint8_t task_state = usb.getUsbTaskState();
@@ -221,7 +213,9 @@ void DiskIODriver_USBFlash::idle() {
           #if USB_DEBUG >= 1
             SERIAL_ECHOLNPGM("Waiting for media");
           #endif
-          LCD_MESSAGEPGM(MSG_MEDIA_WAITING);
+          #if EITHER(ULTRA_LCD, EXTENSIBLE_UI)
+            LCD_MESSAGEPGM(MSG_MEDIA_WAITING);
+          #endif
           GOTO_STATE_AFTER_DELAY(state, 2000);
         }
         break;
@@ -235,9 +229,11 @@ void DiskIODriver_USBFlash::idle() {
       #if USB_DEBUG >= 1
         SERIAL_ECHOLNPGM("USB device removed");
       #endif
-      if (state != MEDIA_READY)
-        LCD_MESSAGEPGM(MSG_MEDIA_USB_REMOVED);
-      GOTO_STATE_AFTER_DELAY(WAIT_FOR_DEVICE, 0);
+      #if EITHER(ULTRA_LCD, EXTENSIBLE_UI)
+        if (state != MEDIA_READY)
+          LCD_MESSAGEPGM(MSG_MEDIA_USB_REMOVED);
+      #endif
+      GOTO_STATE_AFTER_DELAY( WAIT_FOR_DEVICE, 0 );
     }
 
     else if (state > WAIT_FOR_LUN && !bulk.LUNIsGood(0)) {
@@ -245,29 +241,33 @@ void DiskIODriver_USBFlash::idle() {
       #if USB_DEBUG >= 1
         SERIAL_ECHOLNPGM("Media removed");
       #endif
-      LCD_MESSAGEPGM(MSG_MEDIA_REMOVED);
-      GOTO_STATE_AFTER_DELAY(WAIT_FOR_DEVICE, 0);
+      #if EITHER(ULTRA_LCD, EXTENSIBLE_UI)
+        LCD_MESSAGEPGM(MSG_MEDIA_REMOVED);
+      #endif
+      GOTO_STATE_AFTER_DELAY( WAIT_FOR_DEVICE, 0 );
     }
 
     else if (task_state == UHS_STATE(ERROR)) {
-      LCD_MESSAGEPGM(MSG_MEDIA_READ_ERROR);
-      GOTO_STATE_AFTER_DELAY(MEDIA_ERROR, 0);
+        #if EITHER(ULTRA_LCD, EXTENSIBLE_UI)
+          LCD_MESSAGEPGM(MSG_MEDIA_READ_ERROR);
+        #endif
+        GOTO_STATE_AFTER_DELAY( MEDIA_ERROR, 0 );
     }
   }
 }
 
 // Marlin calls this function to check whether an USB drive is inserted.
 // This is equivalent to polling the SD_DETECT when using SD cards.
-bool DiskIODriver_USBFlash::isInserted() {
+bool Sd2Card::isInserted() {
   return state == MEDIA_READY;
 }
 
-bool DiskIODriver_USBFlash::isReady() {
-  return state > DO_STARTUP && usb.getUsbTaskState() == UHS_STATE(RUNNING);
+bool Sd2Card::ready() {
+  return state > DO_STARTUP;
 }
 
 // Marlin calls this to initialize an SD card once it is inserted.
-bool DiskIODriver_USBFlash::init(const uint8_t, const pin_t) {
+bool Sd2Card::init(const uint8_t, const pin_t) {
   if (!isInserted()) return false;
 
   #if USB_DEBUG >= 1
@@ -286,7 +286,7 @@ bool DiskIODriver_USBFlash::init(const uint8_t, const pin_t) {
 }
 
 // Returns the capacity of the card in blocks.
-uint32_t DiskIODriver_USBFlash::cardSize() {
+uint32_t Sd2Card::cardSize() {
   if (!isInserted()) return false;
   #if USB_DEBUG < 3
     const uint32_t
@@ -295,7 +295,7 @@ uint32_t DiskIODriver_USBFlash::cardSize() {
   return lun0_capacity;
 }
 
-bool DiskIODriver_USBFlash::readBlock(uint32_t block, uint8_t *dst) {
+bool Sd2Card::readBlock(uint32_t block, uint8_t* dst) {
   if (!isInserted()) return false;
   #if USB_DEBUG >= 3
     if (block >= lun0_capacity) {
@@ -309,7 +309,7 @@ bool DiskIODriver_USBFlash::readBlock(uint32_t block, uint8_t *dst) {
   return bulk.Read(0, block, 512, 1, dst) == 0;
 }
 
-bool DiskIODriver_USBFlash::writeBlock(uint32_t block, const uint8_t *src) {
+bool Sd2Card::writeBlock(uint32_t block, const uint8_t* src) {
   if (!isInserted()) return false;
   #if USB_DEBUG >= 3
     if (block >= lun0_capacity) {

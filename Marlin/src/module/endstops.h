@@ -1,6 +1,6 @@
 /**
  * Marlin 3D Printer Firmware
- * Copyright (c) 2020 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ * Copyright (c) 2019 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
  *
  * Based on Sprinter and grbl.
  * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
@@ -16,7 +16,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 #pragma once
@@ -28,89 +28,42 @@
 #include "../inc/MarlinConfig.h"
 #include <stdint.h>
 
-#define __ES_ITEM(N) N,
-#define _ES_ITEM(K,N) TERN_(K,DEFER4(__ES_ITEM)(N))
-
 enum EndstopEnum : char {
-  // Common XYZ (ABC) endstops. Defined according to USE_[XYZ](MIN|MAX)_PLUG settings.
-  _ES_ITEM(HAS_X_MIN, X_MIN)
-  _ES_ITEM(HAS_X_MAX, X_MAX)
-  _ES_ITEM(HAS_Y_MIN, Y_MIN)
-  _ES_ITEM(HAS_Y_MAX, Y_MAX)
-  _ES_ITEM(HAS_Z_MIN, Z_MIN)
-  _ES_ITEM(HAS_Z_MAX, Z_MAX)
-
-  // Extra Endstops for XYZ
-  #if ENABLED(X_DUAL_ENDSTOPS)
-    _ES_ITEM(HAS_X_MIN, X2_MIN)
-    _ES_ITEM(HAS_X_MAX, X2_MAX)
-  #endif
-  #if ENABLED(Y_DUAL_ENDSTOPS)
-    _ES_ITEM(HAS_Y_MIN, Y2_MIN)
-    _ES_ITEM(HAS_Y_MAX, Y2_MAX)
-  #endif
-  #if ENABLED(Z_MULTI_ENDSTOPS)
-    _ES_ITEM(HAS_Z_MIN, Z2_MIN)
-    _ES_ITEM(HAS_Z_MAX, Z2_MAX)
-    #if NUM_Z_STEPPER_DRIVERS >= 3
-      _ES_ITEM(HAS_Z_MIN, Z3_MIN)
-      _ES_ITEM(HAS_Z_MAX, Z3_MAX)
-    #endif
-    #if NUM_Z_STEPPER_DRIVERS >= 4
-      _ES_ITEM(HAS_Z_MIN, Z4_MIN)
-      _ES_ITEM(HAS_Z_MAX, Z4_MAX)
-    #endif
-  #endif
-
-  // Bed Probe state is distinct or shared with Z_MIN (i.e., when the probe is the only Z endstop)
-  _ES_ITEM(HAS_BED_PROBE, Z_MIN_PROBE IF_DISABLED(HAS_CUSTOM_PROBE_PIN, = Z_MIN))
-
-  // The total number of states
-  NUM_ENDSTOP_STATES
-
-  // Endstops can be either MIN or MAX but not both
-  #if HAS_X_MIN || HAS_X_MAX
-    , X_ENDSTOP = TERN(X_HOME_TO_MAX, X_MAX, X_MIN)
-  #endif
-  #if HAS_Y_MIN || HAS_Y_MAX
-    , Y_ENDSTOP = TERN(Y_HOME_TO_MAX, Y_MAX, Y_MIN)
-  #endif
-  #if HAS_Z_MIN || HAS_Z_MAX
-    , Z_ENDSTOP = TERN(Z_HOME_TO_MAX, Z_MAX, TERN(HOMING_Z_WITH_PROBE, Z_MIN_PROBE, Z_MIN))
-  #endif
+  X_MIN,  Y_MIN,  Z_MIN,  Z_MIN_PROBE,
+  X_MAX,  Y_MAX,  Z_MAX,
+  X2_MIN, X2_MAX,
+  Y2_MIN, Y2_MAX,
+  Z2_MIN, Z2_MAX,
+  Z3_MIN, Z3_MAX
 };
-
-#undef __ES_ITEM
-#undef _ES_ITEM
 
 class Endstops {
   public:
-
-    typedef IF<(NUM_ENDSTOP_STATES > 8), uint16_t, uint8_t>::type endstop_mask_t;
-
-    #if ENABLED(X_DUAL_ENDSTOPS)
-      static float x2_endstop_adj;
-    #endif
-    #if ENABLED(Y_DUAL_ENDSTOPS)
-      static float y2_endstop_adj;
-    #endif
-    #if ENABLED(Z_MULTI_ENDSTOPS)
-      static float z2_endstop_adj;
-    #endif
-    #if ENABLED(Z_MULTI_ENDSTOPS) && NUM_Z_STEPPER_DRIVERS >= 3
-      static float z3_endstop_adj;
-    #endif
-    #if ENABLED(Z_MULTI_ENDSTOPS) && NUM_Z_STEPPER_DRIVERS >= 4
-      static float z4_endstop_adj;
+    #if HAS_EXTRA_ENDSTOPS
+      typedef uint16_t esbits_t;
+      #if ENABLED(X_DUAL_ENDSTOPS)
+        static float x2_endstop_adj;
+      #endif
+      #if ENABLED(Y_DUAL_ENDSTOPS)
+        static float y2_endstop_adj;
+      #endif
+      #if Z_MULTI_ENDSTOPS
+        static float z2_endstop_adj;
+      #endif
+      #if ENABLED(Z_TRIPLE_ENDSTOPS)
+        static float z3_endstop_adj;
+      #endif
+    #else
+      typedef uint8_t esbits_t;
     #endif
 
   private:
     static bool enabled, enabled_globally;
-    static endstop_mask_t live_state;
-    static volatile endstop_mask_t hit_state; // Use X_MIN, Y_MIN, Z_MIN and Z_MIN_PROBE as BIT index
+    static esbits_t live_state;
+    static volatile uint8_t hit_state;      // Use X_MIN, Y_MIN, Z_MIN and Z_MIN_PROBE as BIT index
 
     #if ENDSTOP_NOISE_THRESHOLD
-      static endstop_mask_t validated_live_state;
+      static esbits_t validated_live_state;
       static uint8_t endstop_poll_count;    // Countdown from threshold for polling
     #endif
 
@@ -126,7 +79,11 @@ class Endstops {
      * Are endstops or the probe set to abort the move?
      */
     FORCE_INLINE static bool abort_enabled() {
-      return enabled || TERN0(HAS_BED_PROBE, z_probe_enabled);
+      return (enabled
+        #if HAS_BED_PROBE
+          || z_probe_enabled
+        #endif
+      );
     }
 
     static inline bool global_enabled() { return enabled_globally; }
@@ -146,12 +103,12 @@ class Endstops {
     /**
      * Get Endstop hit state.
      */
-    FORCE_INLINE static endstop_mask_t trigger_state() { return hit_state; }
+    FORCE_INLINE static uint8_t trigger_state() { return hit_state; }
 
     /**
      * Get current endstops state
      */
-    FORCE_INLINE static endstop_mask_t state() {
+    FORCE_INLINE static esbits_t state() {
       return
         #if ENDSTOP_NOISE_THRESHOLD
           validated_live_state
@@ -159,14 +116,6 @@ class Endstops {
           live_state
         #endif
       ;
-    }
-
-    static inline bool probe_switch_activated() {
-      return (true
-        #if ENABLED(PROBE_ACTIVATION_SWITCH)
-          && READ(PROBE_ACTIVATION_SWITCH_PIN) == PROBE_ACTIVATION_SWITCH_STATE
-        #endif
-      );
     }
 
     /**

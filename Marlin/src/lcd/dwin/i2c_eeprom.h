@@ -2,7 +2,7 @@
 #define __I2C_EEPROM_H
 
 #include "../../inc/MarlinConfig.h"
-// #include "../../Marlin.h"
+#include "../../Marlin.h"
 
 #include <libmaple/gpio.h>
 
@@ -43,7 +43,7 @@ uint8_t IIC_Read_One_Byte(uint8_t daddr,uint8_t addr);
 #define BL24C64	  8191
 #define BL24C128	16383
 #define BL24C256	32767  
-#define EE_TYPE BL24C16
+#define EE_TYPE   BL24C16
 					  
 uint8_t BL24CXX_ReadOneByte(uint16_t ReadAddr);							          //指定地址读取一个字节
 void BL24CXX_WriteOneByte(uint16_t WriteAddr,uint8_t DataToWrite);		//指定地址写入一个字节

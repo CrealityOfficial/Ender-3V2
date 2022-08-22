@@ -1,11 +1,8 @@
 #include "i2c_eeprom.h"
 #include <stdlib.h>
-#include "../../pins/stm32f1/pins_CREALITY_S1.h"
 
-// #include "../../inc/MarlinConfigPre.h"
-// #include "../../Marlin.h"
-
-// #include "LCD_RTS.h"
+#include "../../inc/MarlinConfigPre.h"
+#include "../../Marlin.h"
 
 
 /******************** IIC ********************/
@@ -107,7 +104,7 @@ void IIC_Send_Byte(uint8_t txd)
 		txd <<= 1; 	  
 		delay_us(2);   //对TEA5767这三个延时都是必须的
 		IIC_SCL_1();
-		delay_us(2);
+		delay_us(2); 
 		IIC_SCL_0();	
 		delay_us(2);
 	}
@@ -190,7 +187,7 @@ void BL24CXX_WriteOneByte(uint16_t WriteAddr,uint8_t DataToWrite)
 	IIC_Send_Byte(DataToWrite);     //发送字节							   
 	IIC_Wait_Ack();  		    	   
   IIC_Stop();//产生一个停止条件 
-	delay(2); 
+	delay(2);
 }
 
 //在BL24CXX里面的指定地址开始写入长度为Len的数据
@@ -204,7 +201,8 @@ void BL24CXX_WriteLenByte(uint16_t WriteAddr,uint32_t DataToWrite,uint8_t Len)
 	for(t=0;t<Len;t++)
 	{
 		BL24CXX_WriteOneByte(WriteAddr+t,(DataToWrite>>(8*t))&0xff);
-	}												    
+	}
+	delay(10);
 }
 
 //在BL24CXX里面的指定地址开始读出长度为Len的数据
@@ -237,13 +235,7 @@ uint8_t BL24CXX_Check(void)
 	else//排除第一次初始化的情况
 	{
 		BL24CXX_WriteOneByte(255,0X55);
-		//关闭机箱风扇和LED灯
-		BL24CXX_WriteOneByte(1, 0);
-		BL24CXX_WriteOneByte(2, 0);
-		//设置热床目标温度为0
-		BL24CXX_WriteOneByte(3, 0);
-		
-    	temp=BL24CXX_ReadOneByte(255);	  
+    temp=BL24CXX_ReadOneByte(255);	  
 		if(temp==0X55)return 0;
 	}
 	return 1;											  
@@ -274,5 +266,6 @@ void BL24CXX_Write(uint16_t WriteAddr,uint8_t *pBuffer,uint16_t NumToWrite)
 		WriteAddr++;
 		pBuffer++;
 	}
+	delay(10);
 }
 

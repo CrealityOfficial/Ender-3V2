@@ -1,6 +1,6 @@
 /**
  * Marlin 3D Printer Firmware
- * Copyright (c) 2020 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ * Copyright (c) 2019 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
  *
  * Based on Sprinter and grbl.
  * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
@@ -16,7 +16,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -34,8 +34,8 @@
 // For homing:
 #include "planner.h"
 #include "endstops.h"
-#include "../lcd/marlinui.h"
-#include "../MarlinCore.h"
+#include "../lcd/ultralcd.h"
+#include "../Marlin.h"
 
 #if HAS_BED_PROBE
   #include "probe.h"
@@ -54,12 +54,11 @@ float delta_height;
 abc_float_t delta_endstop_adj{0};
 float delta_radius,
       delta_diagonal_rod,
-      segments_per_second;
+      delta_segments_per_second;
 abc_float_t delta_tower_angle_trim;
 xy_float_t delta_tower[ABC];
 abc_float_t delta_diagonal_rod_2_tower;
 float delta_clip_start_height = Z_MAX_POS;
-abc_float_t delta_diagonal_rod_trim;
 
 float delta_safe_distance_from_top();
 
@@ -68,16 +67,17 @@ float delta_safe_distance_from_top();
  * settings have been changed (e.g., by M665).
  */
 void recalc_delta_settings() {
-  constexpr abc_float_t trt = DELTA_RADIUS_TRIM_TOWER;
+  constexpr abc_float_t trt = DELTA_RADIUS_TRIM_TOWER,
+                        drt = DELTA_DIAGONAL_ROD_TRIM_TOWER;
   delta_tower[A_AXIS].set(cos(RADIANS(210 + delta_tower_angle_trim.a)) * (delta_radius + trt.a), // front left tower
                           sin(RADIANS(210 + delta_tower_angle_trim.a)) * (delta_radius + trt.a));
   delta_tower[B_AXIS].set(cos(RADIANS(330 + delta_tower_angle_trim.b)) * (delta_radius + trt.b), // front right tower
                           sin(RADIANS(330 + delta_tower_angle_trim.b)) * (delta_radius + trt.b));
   delta_tower[C_AXIS].set(cos(RADIANS( 90 + delta_tower_angle_trim.c)) * (delta_radius + trt.c), // back middle tower
                           sin(RADIANS( 90 + delta_tower_angle_trim.c)) * (delta_radius + trt.c));
-  delta_diagonal_rod_2_tower.set(sq(delta_diagonal_rod + delta_diagonal_rod_trim.a),
-                                 sq(delta_diagonal_rod + delta_diagonal_rod_trim.b),
-                                 sq(delta_diagonal_rod + delta_diagonal_rod_trim.c));
+  delta_diagonal_rod_2_tower.set(sq(delta_diagonal_rod + drt.a),
+                                 sq(delta_diagonal_rod + drt.b),
+                                 sq(delta_diagonal_rod + drt.c));
   update_software_endstops(Z_AXIS);
   set_all_unhomed();
 }
@@ -86,23 +86,19 @@ void recalc_delta_settings() {
  * Get a safe radius for calibration
  */
 
-#if EITHER(DELTA_AUTO_CALIBRATION, DELTA_CALIBRATION_MENU)
-
-  #if ENABLED(DELTA_AUTO_CALIBRATION)
-    float calibration_radius_factor = 1;
-  #endif
-
-  float delta_calibration_radius() {
-    return calibration_radius_factor * (
-      #if HAS_BED_PROBE
-        FLOOR((DELTA_PRINTABLE_RADIUS) - _MAX(HYPOT(probe.offset_xy.x, probe.offset_xy.y), PROBING_MARGIN))
-      #else
-        DELTA_PRINTABLE_RADIUS
-      #endif
-    );
-  }
-
+#if ENABLED(DELTA_AUTO_CALIBRATION)
+  float calibration_radius_factor = 1;
 #endif
+
+float delta_calibration_radius() {
+  return FLOOR((DELTA_PRINTABLE_RADIUS - (
+    #if HAS_BED_PROBE
+      _MAX(HYPOT(probe_offset.x, probe_offset.y), MIN_PROBE_EDGE)
+    #else
+      MIN_PROBE_EDGE
+    #endif
+  )) * calibration_radius_factor);
+}
 
 /**
  * Delta Inverse Kinematics
@@ -122,7 +118,7 @@ void recalc_delta_settings() {
 
 #define DELTA_DEBUG(VAR) do { \
     SERIAL_ECHOLNPAIR_P(PSTR("Cartesian X"), VAR.x, SP_Y_STR, VAR.y, SP_Z_STR, VAR.z); \
-    SERIAL_ECHOLNPAIR_P(PSTR("Delta A"), delta.a, SP_B_STR, delta.b, SP_C_STR, delta.c); \
+    SERIAL_ECHOLNPAIR("Delta A", delta.a, " B", delta.b, " C", delta.c); \
   }while(0)
 
 void inverse_kinematics(const xyz_pos_t &raw) {
@@ -177,7 +173,7 @@ float delta_safe_distance_from_top() {
  *
  * The result is stored in the cartes[] array.
  */
-void forward_kinematics(const_float_t z1, const_float_t z2, const_float_t z3) {
+void forward_kinematics_DELTA(const float &z1, const float &z2, const float &z3) {
   // Create a vector in old coordinates along x axis of new coordinate
   const float p12[3] = { delta_tower[B_AXIS].x - delta_tower[A_AXIS].x, delta_tower[B_AXIS].y - delta_tower[A_AXIS].y, z2 - z1 },
 
@@ -233,8 +229,7 @@ void forward_kinematics(const_float_t z1, const_float_t z2, const_float_t z3) {
  * This is like quick_home_xy() but for 3 towers.
  */
 void home_delta() {
-  DEBUG_SECTION(log_home_delta, "home_delta", DEBUGGING(LEVELING));
-
+  if (DEBUGGING(LEVELING)) DEBUG_POS(">>> home_delta", current_position);
   // Init the current position of all carriages to 0,0,0
   current_position.reset();
   destination.reset();
@@ -242,21 +237,27 @@ void home_delta() {
 
   // Disable stealthChop if used. Enable diag1 pin on driver.
   #if ENABLED(SENSORLESS_HOMING)
-    TERN_(X_SENSORLESS, sensorless_t stealth_states_x = start_sensorless_homing_per_axis(X_AXIS));
-    TERN_(Y_SENSORLESS, sensorless_t stealth_states_y = start_sensorless_homing_per_axis(Y_AXIS));
-    TERN_(Z_SENSORLESS, sensorless_t stealth_states_z = start_sensorless_homing_per_axis(Z_AXIS));
+    sensorless_t stealth_states {
+      tmc_enable_stallguard(stepperX),
+      tmc_enable_stallguard(stepperY),
+      tmc_enable_stallguard(stepperZ)
+    };
   #endif
 
   // Move all carriages together linearly until an endstop is hit.
-  current_position.z = DIFF_TERN(HAS_BED_PROBE, delta_height + 10, probe.offset.z);
-  line_to_current_position(homing_feedrate(Z_AXIS));
+  current_position.z = (delta_height + 10
+    #if HAS_BED_PROBE
+      - probe_offset.z
+    #endif
+  );
+  line_to_current_position(homing_feedrate(X_AXIS));
   planner.synchronize();
 
   // Re-enable stealthChop if used. Disable diag1 pin on driver.
-  #if ENABLED(SENSORLESS_HOMING) && DISABLED(ENDSTOPS_ALWAYS_ON_DEFAULT)
-    TERN_(X_SENSORLESS, end_sensorless_homing_per_axis(X_AXIS, stealth_states_x));
-    TERN_(Y_SENSORLESS, end_sensorless_homing_per_axis(Y_AXIS, stealth_states_y));
-    TERN_(Z_SENSORLESS, end_sensorless_homing_per_axis(Z_AXIS, stealth_states_z));
+  #if ENABLED(SENSORLESS_HOMING)
+    tmc_disable_stallguard(stepperX, stealth_states.x);
+    tmc_disable_stallguard(stepperY, stealth_states.y);
+    tmc_disable_stallguard(stepperZ, stealth_states.z);
   #endif
 
   endstops.validate_homing_move();
@@ -271,17 +272,11 @@ void home_delta() {
   // Do this here all at once for Delta, because
   // XYZ isn't ABC. Applying this per-tower would
   // give the impression that they are the same.
-  LOOP_ABC(i) set_axis_is_at_home((AxisEnum)i);
+  LOOP_XYZ(i) set_axis_is_at_home((AxisEnum)i);
 
   sync_plan_position();
 
-  #if DISABLED(DELTA_HOME_TO_SAFE_ZONE) && defined(HOMING_BACKOFF_POST_MM)
-    constexpr xyz_float_t endstop_backoff = HOMING_BACKOFF_POST_MM;
-    if (endstop_backoff.z) {
-      current_position.z -= ABS(endstop_backoff.z) * Z_HOME_DIR;
-      line_to_current_position(homing_feedrate(Z_AXIS));
-    }
-  #endif
+  if (DEBUGGING(LEVELING)) DEBUG_POS("<<< home_delta", current_position);
 }
 
 #endif // DELTA

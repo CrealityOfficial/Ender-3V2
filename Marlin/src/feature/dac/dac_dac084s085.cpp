@@ -10,7 +10,7 @@
 
 #include "dac_dac084s085.h"
 
-#include "../../MarlinCore.h"
+#include "../../Marlin.h"
 #include "../../module/stepper.h"
 #include "../../HAL/shared/Delay.h"
 
@@ -21,7 +21,7 @@ void dac084s085::begin() {
 
   // All SPI chip-select HIGH
   SET_OUTPUT(DAC0_SYNC);
-  #if HAS_MULTI_EXTRUDER
+  #if EXTRUDERS > 1
     SET_OUTPUT(DAC1_SYNC);
   #endif
   cshigh();
@@ -38,7 +38,7 @@ void dac084s085::begin() {
   spiSend(SPI_CHAN_DAC, externalDac_buf, COUNT(externalDac_buf));
   WRITE(DAC0_SYNC, HIGH);
 
-  #if HAS_MULTI_EXTRUDER
+  #if EXTRUDERS > 1
     //init Piggy DAC
     DELAY_US(2);
     WRITE(DAC1_SYNC, LOW);
@@ -86,13 +86,13 @@ void dac084s085::setValue(const uint8_t channel, const uint8_t value) {
 
 void dac084s085::cshigh() {
   WRITE(DAC0_SYNC, HIGH);
-  #if HAS_MULTI_EXTRUDER
+  #if EXTRUDERS > 1
     WRITE(DAC1_SYNC, HIGH);
   #endif
   WRITE(SPI_EEPROM1_CS, HIGH);
   WRITE(SPI_EEPROM2_CS, HIGH);
   WRITE(SPI_FLASH_CS, HIGH);
-  WRITE(SD_SS_PIN, HIGH);
+  WRITE(SS_PIN, HIGH);
 }
 
 #endif // MB(ALLIGATOR)

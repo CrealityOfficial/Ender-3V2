@@ -1,6 +1,6 @@
 /**
  * Marlin 3D Printer Firmware
- * Copyright (c) 2020 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
+ * Copyright (c) 2019 MarlinFirmware [https://github.com/MarlinFirmware/Marlin]
  *
  * Based on Sprinter and grbl.
  * Copyright (c) 2011 Camiel Gubbels / Erik van der Zalm
@@ -16,7 +16,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
 
@@ -61,27 +61,3 @@ void GcodeSuite::M9() {
 }
 
 #endif // COOLANT_CONTROL
-
-#if ENABLED(AIR_ASSIST)
-
-#include "../gcode.h"
-#include "../../module/planner.h"
-#include "../../feature/spindle_laser.h"
-
-/**
- * M8: Air Assist On
- */
-void GcodeSuite::M8() {
-  planner.synchronize();
-  cutter.air_assist_enable();   // Turn on Air Assist pin
-}
-
-/**
- * M9: Air Assist Off
- */
-void GcodeSuite::M9() {
-  planner.synchronize();
-  cutter.air_assist_disable();  // Turn off Air Assist pin
-}
-
-#endif // AIR_ASSIST

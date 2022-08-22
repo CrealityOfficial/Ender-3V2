@@ -31,8 +31,8 @@ Please refer to: [Marlin Page](https://marlinfw.org/docs/basics/introduction.htm
 
   Platform|MCU|Example Boards
   --------|---|-------
-  [STM32F103](https://www.st.com/en/microcontrollers-microprocessors/stm32f103.html)|ARM® Cortex-M3|Creality4.2.2,4.2.3,4.2.7,4.3.1,4.2.5,4.2.10
-  [GD32F303](https://www.st.com/en/microcontrollers-microprocessors/stm32f103.html)|ARM® Cortex-M3|Creality4.2.2,4.2.3,4.2.7,4.3.1,4.2.5,4.2.10
+  [STM32F103](https://www.st.com/en/microcontrollers-microprocessors/stm32f103.html)|ARM® Cortex-M3|Creality4.2.2,Creality4.2.3,Creality4.2.7,Creality4.3.1,Creality4.2.5,Creality4.2.10
+  [GD32F303](https://www.st.com/en/microcontrollers-microprocessors/stm32f103.html)|ARM® Cortex-M3|Creality4.2.2,Creality4.2.3,Creality4.2.7,Creality4.3.1,Creality4.2.5,Creality4.2.10
   [STM32F401](https://www.st.com/en/microcontrollers-microprocessors/stm32f401.html)|ARM® Cortex-M4|ARMED, Rumba32, SKR Pro, Lerdge, FYSETC S6
 
 # Issues and Suggestions
